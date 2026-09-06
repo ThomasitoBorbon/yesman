@@ -1,10 +1,9 @@
-"""OpenAI adapter and Linux/Windows audio process management."""
+"""Small standard-library OpenAI and Linux audio adapters."""
 import json
 import os
 import shutil
 import signal
 import subprocess
-import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -85,14 +84,12 @@ class Audio:
         self.errors = None
 
     def start(self, command):
-        windows = sys.platform == 'win32'
         if not shutil.which(command[0]):
             raise RuntimeError(f'{command[0]} is missing. Install alsa-utils for voice support.')
         self.errors = tempfile.TemporaryFile()
         try:
-            self.process = subprocess.Popen(command, stdin=subprocess.PIPE if windows else subprocess.DEVNULL,
-                                            stdout=subprocess.DEVNULL, stderr=self.errors,
-                                            **({'creationflags': subprocess.CREATE_NO_WINDOW} if windows else {}))
+            self.process = subprocess.Popen(command, stdin=subprocess.DEVNULL,
+                                            stdout=subprocess.DEVNULL, stderr=self.errors)
         except Exception:
             self.errors.close()
             self.errors = None
@@ -100,23 +97,13 @@ class Audio:
 
     def record(self):
         self.recording.unlink(missing_ok=True)
-        if sys.platform == 'win32':
-            self.start_windows('record', self.recording)
-            return
         self.start(['arecord', '-q', '-D', os.getenv('YESMAN_INPUT_DEVICE', 'default'),
                     '-t', 'wav', '-f', 'S16_LE', '-r', '16000', '-c', '1', '-d', '30',
                     str(self.recording)])
 
     def stop(self):
         if self.process and self.process.poll() is None:
-            if sys.platform == 'win32':
-                try:
-                    self.process.stdin.write(b'\n')
-                    self.process.stdin.flush()
-                except (BrokenPipeError, OSError):
-                    pass
-            else:
-                self.process.send_signal(signal.SIGINT)
+            self.process.send_signal(signal.SIGINT)
             try:
                 self.process.wait(timeout=2)
             except subprocess.TimeoutExpired:
@@ -125,8 +112,6 @@ class Audio:
 
     def finish(self):
         code = self.process.wait() if self.process else 0
-        if self.process and self.process.stdin:
-            self.process.stdin.close()
         self.process = None
         if self.errors:
             self.errors.close()
@@ -143,21 +128,8 @@ class Audio:
 
     def play(self, data):
         self.playback.write_bytes(data)
-        if sys.platform == 'win32':
-            self.start_windows('play', self.playback)
-            return
         self.start(['aplay', '-q', '-D', os.getenv('YESMAN_OUTPUT_DEVICE', 'default'),
                     str(self.playback)])
-
-    def start_windows(self, mode, path):
-        # Check in the parent so a missing dependency gives an actionable message.
-        try:
-            import sounddevice  # noqa: F401
-        except (ImportError, OSError):
-            raise RuntimeError('Windows voice requires sounddevice. Run: '
-                               'python -m pip install -r requirements.txt') from None
-        self.start([sys.executable, str(Path(__file__).with_name('windows_audio.py')),
-                    mode, str(path)])
 
     def close(self):
         self.stop()

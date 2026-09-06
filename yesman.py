@@ -5,7 +5,6 @@ import getpass
 import locale
 import os
 import queue
-import sys
 import textwrap
 import threading
 import time
@@ -57,7 +56,7 @@ class Assistant:
 
     def record_toggle(self):
         if not self.api:
-            self.answer = 'Voice is available in live mode: python yesman.py --live'
+            self.answer = 'Voice is available in live mode: python3 yesman.py --live'
         elif self.status == 'LISTENING':
             self.audio.stop()
         elif self.status == 'READY':
@@ -69,9 +68,6 @@ class Assistant:
             code = self.audio.finish()
             if self.status == 'LISTENING':
                 self.status = 'READY'
-                if sys.platform == 'win32' and code:
-                    raise RuntimeError('Recording failed. Check Windows microphone permissions '
-                                       'and your input device.')
                 self.audio.validate_recording()
                 self.status = 'TRANSCRIBING'
                 self.work(lambda: self.api.transcribe(self.audio.recording), 'transcript')

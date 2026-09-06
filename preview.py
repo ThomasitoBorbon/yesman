@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def load_face():
-    lines = Path(__file__).with_name('assets').joinpath('yesman.txt').read_text().splitlines()
+    lines = Path(__file__).with_name('assets').joinpath('yesman.txt').read_text(encoding='utf-8').splitlines()
     # Remove only the uninterrupted background, retaining every feature row.
     while lines and not lines[0].strip('█'):
         lines.pop(0)

@@ -5,9 +5,34 @@ from unittest.mock import Mock
 
 from assistant_backend import API
 from yesman import Assistant, display_text
+from animation import ResponseAnimation, animate_face
+from preview import load_face
 
 
 class Checks(unittest.TestCase):
+    def test_response_reveal_and_reset(self):
+        animation = ResponseAnimation()
+        self.assertTrue(animation.update('a' * 100, 10))
+        self.assertEqual(animation.visible(10), '')
+        self.assertEqual(len(animation.visible(11)), 45)
+        self.assertFalse(animation.update('a' * 100, 11))
+        animation.reveal()
+        self.assertEqual(len(animation.visible(11)), 100)
+        self.assertTrue(animation.update('Next reply', 12))
+        self.assertEqual(animation.visible(12), '')
+        self.assertEqual(animation.visible(20), 'Next reply')
+
+    def test_face_animation_preserves_art_and_dimensions(self):
+        face = load_face()
+        original = list(face)
+        self.assertEqual(animate_face(face, 1), face)
+        self.assertNotEqual(animate_face(face, 0), face)
+        self.assertNotEqual(animate_face(face, 1, speaking=True), face)
+        for frame in range(100):
+            result = animate_face(face, frame / 30, speaking=True)
+            self.assertEqual(list(map(len, result)), list(map(len, face)))
+        self.assertEqual(face, original)
+
     def test_failed_request_does_not_poison_history(self):
         api = API('test')
         api.request = Mock(side_effect=RuntimeError('offline'))

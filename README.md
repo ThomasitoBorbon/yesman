@@ -32,6 +32,13 @@ Use a UTF-8 terminal and a connected microphone and speaker.
 - Type and press Enter to send. Drafting is allowed while busy; send when READY.
 - F2 starts recording; F2 again stops and submits. Recordings stop at 30 seconds.
 - F3 toggles spoken replies and stops current playback. Text replies remain visible.
+- Replies appear with a typewriter effect and automatically scroll as text arrives.
+  F4 reveals the entire reply immediately. Page Up pauses automatic scrolling;
+  Page Down to the bottom resumes it.
+- The face blinks and animates its mouth during audio playback. Offline demo
+  replies also animate while text appears. Mouth movement is a timed animation,
+  not phoneme lip sync; text reveals at 45 characters per second independently
+  of speech. Live spoken replies remain enabled by default.
 - Page Up/Down scrolls replies. Escape or `/exit` exits.
 
 This is push-to-talk voice, not an always-listening or interruptible realtime call.
@@ -60,7 +67,7 @@ Use `arecord -L` and `aplay -L` to list ALSA device names if the default device
 does not work. SSH does not forward microphone or speaker audio: the app uses
 audio devices on the machine where it runs.
 
-Copy this entire directory, including `assets`, to the Pi. Launch `yesman.py`
+Copy this entire directory, including `animation.py` and `assets`, to the Pi. Launch `yesman.py`
 from the Pi's terminal. Keep credentials out of the copied project directory.
 
 API references: [transcription](https://developers.openai.com/api/docs/guides/speech-to-text),

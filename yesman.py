@@ -7,10 +7,12 @@ import os
 import queue
 import textwrap
 import threading
+import time
 import unicodedata
 
 from assistant_backend import API, Audio
 from preview import load_face
+from animation import ResponseAnimation, animate_face
 
 
 def display_text(value):
@@ -125,9 +127,11 @@ class Assistant:
 def run(screen, app):
     curses.curs_set(1)
     screen.keypad(True)
-    screen.timeout(100)
+    screen.timeout(33)
     face = load_face()
-    draft, offset, previous = '', 0, ''
+    animation = ResponseAnimation()
+    follow = True
+    draft, offset = '', 0
     while True:
         try:
             app.tick()
@@ -135,8 +139,9 @@ def run(screen, app):
             app.answer += '\n\n' + str(error)
             app.speech_chunks = None
             app.status = 'READY'
-        if app.answer != previous:
-            offset, previous = 0, app.answer
+        now = time.monotonic()
+        if animation.update(display_text(app.answer), now):
+            offset, follow = 0, True
         screen.erase()
         height, width = screen.getmaxyx()
         h, w = min(height, 48), min(width, 90)
@@ -156,19 +161,21 @@ def run(screen, app):
         else:
             mode = 'LIVE' if app.api else 'DEMO'
             put(0, left, f'YES MAN | {mode} | {app.status} | Voice {"ON" if app.speak else "OFF"}', curses.A_BOLD)
-            for row, line in enumerate(face, 2):
+            shown = animation.visible(now)
+            speaking = app.status == 'SPEAKING' or (not app.api and shown != animation.text)
+            for row, line in enumerate(animate_face(face, now, speaking), 2):
                 put(row, left + (w - len(line)) // 2, line)
             divider = len(face) + 3
             put(divider, left, '─' * (w - 1))
             put(divider + 1, left, ('YOU: ' + display_text(app.heard))[:w - 1], curses.A_DIM)
-            for paragraph in display_text(app.answer).splitlines():
+            for paragraph in shown.splitlines():
                 lines.extend(textwrap.wrap(paragraph, w - 2) or [''])
             capacity = h - divider - 7
-            offset = min(offset, max(0, len(lines) - capacity))
+            offset = max(0, len(lines) - capacity) if follow else min(offset, max(0, len(lines) - capacity))
             for i, line in enumerate(lines[offset:offset + capacity]):
                 put(divider + 2 + i, left, line)
             put(h - 4, left, 'F2: record/stop (30s max) | F3: voice on/off', curses.A_DIM)
-            put(h - 3, left, 'Enter: send | PgUp/Dn: scroll | Esc: exit', curses.A_DIM)
+            put(h - 3, left, 'Enter: send | F4: show all | PgUp/Dn: scroll | Esc: exit', curses.A_DIM)
             visible = draft[-(w - 9):]
             put(h - 2, left, 'YOU > ' + visible)
             screen.move(h - 2, left + 6 + len(visible))
@@ -184,6 +191,8 @@ def run(screen, app):
                 app.record_toggle()
             elif key == curses.KEY_F3:
                 app.toggle_speech()
+            elif key == curses.KEY_F4:
+                animation.reveal()
             elif key in ('\n', '\r', curses.KEY_ENTER):
                 if draft.strip().lower() in ('/exit', '/quit'):
                     return
@@ -193,9 +202,11 @@ def run(screen, app):
             elif key in (curses.KEY_BACKSPACE, '\x7f', '\b'):
                 draft = draft[:-1]
             elif key == curses.KEY_PPAGE:
+                follow = False
                 offset = max(0, offset - capacity)
             elif key == curses.KEY_NPAGE:
                 offset = min(max(0, len(lines) - capacity), offset + capacity)
+                follow = offset == max(0, len(lines) - capacity)
             elif isinstance(key, str) and key.isascii() and key.isprintable():
                 draft += key
         except Exception as error:

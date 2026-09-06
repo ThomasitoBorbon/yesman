@@ -1,4 +1,5 @@
 """Clock-driven terminal animation; no audio or network dependencies."""
+import math
 
 
 class ResponseAnimation:
@@ -35,7 +36,20 @@ def animate_face(face, now, speaking=False):
             for left, right in ((16, 21), (32, 37)):
                 replace(y, left, right, '     ' if y == 10 else '')
     if speaking:
-        opening = (0, 1, 3, 2, 1, 0, 2, 3)[int(now * 9) % 8]
-        for y in range(18, 24):
-            replace(y, 17, 38, ' ' * 21 if y < 18 + opening else '')
+        # Keep the wide smile and its corners fixed. Move only the lower jaw,
+        # with a curved outline instead of switching rectangular cutouts.
+        # Two smooth rhythms give short closures between larger syllables.
+        pulse = (0.5 + 0.5 * math.sin(now * math.tau * 2.6)) ** 1.4
+        emphasis = 0.75 + 0.25 * math.sin(now * math.tau * 0.7)
+        depth = 1.5 + 6.5 * pulse * emphasis
+        for y in range(18, 26):
+            cells = []
+            for x in range(7, 47):
+                horizontal = (x + 0.5 - 27) / 20
+                edge = depth * math.sqrt(max(0, 1 - horizontal ** 2))
+                coverage = max(0, min(1, edge - (y - 18)))
+                # Half-cell edges soften the jaw's vertical motion in a
+                # character grid. The lower half block leaves the top open.
+                cells.append(' ' if coverage >= 0.75 else '▄' if coverage >= 0.25 else '█')
+            replace(y, 7, 47, ''.join(cells))
     return rows
